@@ -1,0 +1,9 @@
+[submodule "Plugins/HeartGraph"]
+	path = Plugins/HeartGraph
+	url = https://github.com/Drakynfly/HeartGraph.git
+[submodule "Plugins/HeartDemoContent"]
+	path = Plugins/HeartDemoContent
+	url = https://github.com/Drakynfly/HeartDemoContent.git
+[submodule "Plugins/VoxelPlugin"]
+	path = Plugins/VoxelPlugin
+	url = git@github.com:VoxelPlugin/VoxelPlugin.git
