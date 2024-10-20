@@ -1,12 +1,13 @@
 ﻿// Copyright Guy (Drakynfly) Lundvall. All Rights Reserved.
 
 #include "Proxy/VoxelProxyNode.h"
+#include "Proxy/VoxelProxyGraph.h"
+#include "Proxy/VoxelProxyConverters.h"
+
 #include "VoxelCompilationGraph.h"
 #include "VoxelGraph.h"
-#include "VoxelPropertyType.h"
 #include "VoxelTerminalGraph.h"
 #include "VoxelTerminalGraphRuntime.h"
-#include "Proxy/VoxelProxyGraph.h"
 
 #include "access/access.h"
 
@@ -46,27 +47,19 @@ FLinearColor UVoxelProxyNode::GetNodeTitleColor_Implementation(const UObject* No
 using FCachedCompiledGraphType = TOptional<TSharedPtr<const Voxel::Graph::FGraph>>;
 ACCESS_CREATE_TAG(TheCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
 
-void UVoxelProxyNode::SetPinDefaultValue_Float(const FName Pin, const double Value)
+void UVoxelProxyNode::SetPinDefaultValue(const FName Pin, const FBloodValue& Value)
 {
 	const UVoxelTerminalGraph& Terminal = ProxiedNodeRef.TerminalGraphRef.Graph->GetMainTerminalGraph();
 	UVoxelTerminalGraphRuntime& Runtime = Terminal.GetRuntime();
 
+	// Set value on Serialized Graph
 	FVoxelSerializedGraph& SerializedGraph = const_cast<FVoxelSerializedGraph&>(Runtime.GetSerializedGraph());
-
 	if (auto&& SerializedPin = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName].InputPins.Find(Pin))
 	{
-		auto PinType = SerializedPin->Type.GetPropertyType().GetInternalType();
-
-		if (PinType == EVoxelPropertyInternalType::Float)
-		{
-			SerializedPin->DefaultValue = FVoxelPinValue::Make<float>(Value);
-		}
-		else if (PinType == EVoxelPropertyInternalType::Double)
-		{
-			SerializedPin->DefaultValue = FVoxelPinValue::Make<double>(Value);
-		}
+		SerializedPin->DefaultValue = Converters::BloodToVoxelPin(Value, SerializedPin->Type);
 	}
 
+	// Set value on Compiled Graph
 	FCachedCompiledGraphType CompiledGraph = access::get<TheCompiledGraph>(Runtime);
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
@@ -78,38 +71,22 @@ void UVoxelProxyNode::SetPinDefaultValue_Float(const FName Pin, const double Val
 			Voxel::Graph::FPin* PinPtr = const_cast<Voxel::Graph::FNode&>(NodeAddr).FindPin(Pin);
 			if (!PinPtr) return;
 
-			auto PinType = PinPtr->Type.GetPropertyType().GetInternalType();
-
-			if (PinType == EVoxelPropertyInternalType::Float)
-			{
-				PinPtr->SetDefaultValue(FVoxelPinValue::Make<float>(Value));
-			}
-			else if (PinType == EVoxelPropertyInternalType::Double)
-			{
-				PinPtr->SetDefaultValue(FVoxelPinValue::Make<double>(Value));
-			}
+			PinPtr->SetDefaultValue(Converters::BloodToVoxelPin(Value, PinPtr->Type));
 		}
 	}
 
 	GetOwningGraph<UVoxelProxyGraph>()->NotifyPinDefaultValueChanged();
 }
 
-double UVoxelProxyNode::GetPinDefaultValue_Float(const FName Pin) const
+FBloodValue UVoxelProxyNode::GetPinDefaultValue(const FName Pin) const
 {
 	const UVoxelTerminalGraph& Terminal = ProxiedNodeRef.TerminalGraphRef.Graph->GetMainTerminalGraph();
 	const UVoxelTerminalGraphRuntime& Runtime = Terminal.GetRuntime();
 	const FVoxelSerializedGraph& SerializedGraph = Runtime.GetSerializedGraph();
 	if (auto&& SerializedPin = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName].InputPins.Find(Pin))
 	{
-		if (SerializedPin->DefaultValue.Is<float>())
-		{
-			return SerializedPin->DefaultValue.Get<float>();
-		}
-		if (SerializedPin->DefaultValue.Is<double>())
-		{
-			return SerializedPin->DefaultValue.Get<double>();
-		}
+		return Converters::VoxelPinToBlood(SerializedPin->DefaultValue);
 	}
 
-	return 0.0;
+	return FBloodValue();
 }

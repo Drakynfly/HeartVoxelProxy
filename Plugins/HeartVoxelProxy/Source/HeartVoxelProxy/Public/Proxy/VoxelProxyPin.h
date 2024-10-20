@@ -4,7 +4,6 @@
 
 #include "NativeGameplayTags.h"
 #include "VoxelPinType.h"
-#include "Model/HeartGraphPinDesc.h"
 #include "Model/HeartGraphPinMetadata.h"
 
 #include "VoxelProxyPin.generated.h"
@@ -16,11 +15,6 @@ namespace VoxelPinTags
 {
 	// Tags Voxel pins for Heart Registrars
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(HeartPinTag_Voxel)
-}
-
-namespace Converters
-{
-	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const EHeartPinDirection PinDirection);
 }
 
 UENUM(BlueprintType)

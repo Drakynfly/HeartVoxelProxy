@@ -11,6 +11,7 @@ public class HeartVoxelProxy : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"Blood",
 				"Core",
 				"GameplayTags",
 				"Heart",

@@ -1,7 +1,6 @@
 ﻿// Copyright Guy (Drakynfly) Lundvall. All Rights Reserved.
 
 #include "Proxy/VoxelProxyPin.h"
-#include "Proxy/VoxelProxyGraph.h"
 
 #include "VoxelExposedSeed.h"
 #include "VoxelSurface.h"
@@ -48,20 +47,6 @@ namespace PinColors
 namespace VoxelPinTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(HeartPinTag_Voxel, "Heart.Pin.Voxel")
-}
-
-namespace Converters
-{
-	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const EHeartPinDirection PinDirection)
-	{
-		FHeartGraphPinDesc NewPin;
-		NewPin.Name = InPin.PinName;
-		NewPin.FriendlyName = FText::FromString(FName::NameToDisplayString(InPin.PinName.ToString(), false));
-		NewPin.Tag = FHeartGraphPinTag::ConvertChecked(VoxelPinTags::HeartPinTag_Voxel);
-		NewPin.Direction = PinDirection;
-		NewPin.Metadata.Add(ProxyGraph->GetTypeMetadata(InPin.Type));
-		return NewPin;
-	}
 }
 
 EVoxelPinProxyType UHeartVoxelPinTypeWrapper::GetPinType() const

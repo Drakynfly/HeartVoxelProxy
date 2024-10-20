@@ -4,10 +4,10 @@
 
 #include "Model/HeartNodeEdit.h"
 
+#include "Proxy/VoxelProxyConverters.h"
 #include "Proxy/VoxelProxyDummy.h"
 #include "Proxy/VoxelProxyGraph.h"
 #include "Proxy/VoxelProxyNode.h"
-#include "Proxy/VoxelProxyPin.h"
 
 #include "VoxelActor.h"
 #include "VoxelGraph.h"
