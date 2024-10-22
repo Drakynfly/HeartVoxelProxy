@@ -142,6 +142,26 @@ EVoxelPinProxyType UHeartVoxelPinTypeWrapper::GetPinType() const
 	}
 }
 
+EVoxelPinProxyStructType UHeartVoxelPinTypeWrapper::GetPinStructType() const
+{
+	const FVoxelPinType Type = PinType.GetInnerExposedType();
+
+	if (Type.Is<FVoxelExposedSeed>())
+	{
+		return EVoxelPinProxyStructType::VoxelExposedSeed;
+	}
+	if (Type.Is<FVoxelChannelName>())
+	{
+		return EVoxelPinProxyStructType::VoxelChannelName;
+	}
+	if (Type.Is<FBodyInstance>())
+	{
+		return EVoxelPinProxyStructType::BodyInstance;
+	}
+
+	return EVoxelPinProxyStructType::Generic;
+}
+
 // Implementation based on FVoxelGraphVisuals::GetPinColor
 FLinearColor UHeartVoxelPinTypeWrapper::GetPinColor() const
 {

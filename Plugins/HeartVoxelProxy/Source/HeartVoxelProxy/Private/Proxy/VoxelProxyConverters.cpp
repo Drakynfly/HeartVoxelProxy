@@ -1,15 +1,19 @@
 ﻿// Copyright Guy (Drakynfly) Lundvall. All Rights Reserved.
 
 #include "Proxy/VoxelProxyConverters.h"
-#include "VoxelPropertyType.h"
 #include "Proxy/VoxelProxyGraph.h"
 #include "Proxy/VoxelProxyPin.h"
 
+#include "VoxelExposedSeed.h"
+#include "VoxelNode.h"
 #include "VoxelSerializedGraph.h"
+#include "VoxelPropertyType.h"
+#include "Buffer/VoxelBaseBuffers.h"
+#include "Channel/VoxelChannelName.h"
 
 namespace Converters
 {
-	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const EHeartPinDirection PinDirection)
+	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const FVoxelPinMetadata& PinMetadata, const EHeartPinDirection PinDirection)
 	{
 		FHeartGraphPinDesc NewPin;
 		NewPin.Name = InPin.PinName;
@@ -17,6 +21,9 @@ namespace Converters
 		NewPin.Tag = FHeartGraphPinTag::ConvertChecked(VoxelPinTags::HeartPinTag_Voxel);
 		NewPin.Direction = PinDirection;
 		NewPin.Metadata.Add(ProxyGraph->GetTypeMetadata(InPin.Type));
+		UHeartVoxelPerPinMetadata* PerPinMetadata = NewObject<UHeartVoxelPerPinMetadata>(ProxyGraph);
+		PerPinMetadata->PinMetadata = PinMetadata;
+		NewPin.Metadata.Add(PerPinMetadata);
 		return NewPin;
 	}
 
@@ -99,6 +106,17 @@ namespace Converters
 			if (Type.IsObject()) return FBloodValue{Value.GetObject()};
 			if (Type.IsStruct())
 			{
+				if (Type.GetStruct() == FVoxelChannelName::StaticStruct())
+				{
+					return FBloodValue(Value.Get<FVoxelChannelName>().Name);
+				}
+				if (Type.GetStruct() == FBodyInstance::StaticStruct())
+				{
+					// Body Instances are large as heck, all we need is the enum to generate a combo box.
+					const uint8 ByteValue = Value.Get<FBodyInstance>().GetCollisionEnabled();
+					return FBloodValue(ByteValue);
+				}
+
 				auto&& Struct = Value.GetStruct();
 				return FBloodValue(Struct.GetScriptStruct(), static_cast<const uint8*>(Struct.GetStructMemory()));
 			}
@@ -116,7 +134,7 @@ namespace Converters
 	{
 		if (!Value.IsValid()) return FVoxelPinValue();
 
-		if (Value.IsContainer1())
+		if (Value.IsContainer1() || Value.IsContainer2())
 		{
 			unimplemented()
 		}
@@ -154,11 +172,42 @@ namespace Converters
 				break;
 			case EVoxelPropertyInternalType::Object:
 				if (Value.Is<TObjectPtr<UObject>>()) return FVoxelPinValue::Make(Value.GetValue<TObjectPtr<UObject>>());
-
 				break;
 			case EVoxelPropertyInternalType::Struct:
+				if (ExpectedType.GetStruct() == FVoxelChannelName::StaticStruct())
+				{
+					if (Value.Is<FName>()) return FVoxelPinValue::Make(FVoxelChannelName(Value.GetValue<FName>()));
+					if (Value.Is<FString>()) return FVoxelPinValue::Make(FVoxelChannelName(FName(Value.GetValue<FString>())));
+				}
+				else if (ExpectedType.GetStruct() == FVoxelExposedSeed::StaticStruct())
+				{
+					if (Value.Is<FName>()) return FVoxelPinValue::Make(FVoxelExposedSeed(Value.GetValue<FName>().ToString()));
+					if (Value.Is<FString>()) return FVoxelPinValue::Make(FVoxelExposedSeed(Value.GetValue<FString>()));
+				}
+				else if (ExpectedType.GetStruct() == FVoxelSeed::StaticStruct())
+				{
+					if (Value.Is<FName>())
+					{
+						const FVoxelSeed Seed = FCrc::StrCrc32(*Value.GetValue<FName>().ToString());
+						return FVoxelPinValue::Make(Seed);
+					}
+					if (Value.Is<FString>())
+					{
+						const FVoxelSeed Seed = FCrc::StrCrc32(*Value.GetValue<FString>());
+						return FVoxelPinValue::Make(Seed);
+					}
+				}
+				else if (ExpectedType.GetStruct() == FBodyInstance::StaticStruct())
+				{
+					if (IsNumeric(Value))
+					{
+						FBodyInstance BodyInstance;
+						BodyInstance.SetCollisionEnabled(static_cast<ECollisionEnabled::Type>(Value.GetValue<uint8>()));
+						return FVoxelPinValue::Make(BodyInstance);
+					}
+				}
+
 				return FVoxelPinValue::MakeStruct(VoxelInstancedStructWrap(Value.GetStruct()));
-				break;
 			}
 		}
 

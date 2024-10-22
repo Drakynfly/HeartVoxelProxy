@@ -194,7 +194,10 @@ void UVoxelProxyNode::SetPinDefaultValue(const FName Pin, const FBloodValue& Val
 	FVoxelSerializedNode& SerializedNode = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName];
 	if (auto&& SerializedPin = SerializedNode.InputPins.Find(Pin))
 	{
-		if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, SerializedPin->Type);
+		// DefaultValue and PinType can differ (ExposedSeed vs. VoxelSeed)
+		const FVoxelPinType ExpectedType = SerializedPin->DefaultValue.IsValid() ? SerializedPin->DefaultValue.GetType() : SerializedPin->Type;
+
+		if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, ExpectedType);
 			NewValue != SerializedPin->DefaultValue)
 		{
 			SerializedPin->DefaultValue = NewValue;
@@ -214,7 +217,10 @@ void UVoxelProxyNode::SetPinDefaultValue(const FName Pin, const FBloodValue& Val
 			Voxel::Graph::FPin* PinPtr = NodePtr->FindPin(Pin);
 			if (!PinPtr) return;
 
-			if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, PinPtr->Type);
+			// DefaultValue and PinType can differ (ExposedSeed vs. VoxelSeed)
+			const FVoxelPinType ExpectedType = PinPtr->GetDefaultValue().IsValid() ? PinPtr->GetDefaultValue().GetType() : PinPtr->Type;
+
+			if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, ExpectedType);
 				NewValue != PinPtr->GetDefaultValue())
 			{
 				PinPtr->SetDefaultValue(NewValue);

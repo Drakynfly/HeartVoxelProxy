@@ -11,6 +11,7 @@
 
 #include "VoxelActor.h"
 #include "VoxelGraph.h"
+#include "VoxelNode.h"
 #include "VoxelTerminalGraph.h"
 #include "VoxelTerminalGraphRuntime.h"
 
@@ -59,12 +60,16 @@ void UHeartVoxelMarriage::GenerateProxyFromVoxelGraph(UVoxelGraph* Graph)
 
 			for (auto&& InputPin : SerializedNode.InputPins)
 			{
-				NewProxy->AddPin(Converters::VoxelPinToHeartPin(ProxyGraph, InputPin.Value, EHeartPinDirection::Input));
+				TSharedPtr<const FVoxelPin> Pin = SerializedNode.VoxelNode->FindPin(InputPin.Key);
+				NewProxy->AddPin(Converters::VoxelPinToHeartPin(ProxyGraph,
+					InputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Input));
 			}
 
 			for (auto&& OutputPin : SerializedNode.OutputPins)
 			{
-				NewProxy->AddPin(Converters::VoxelPinToHeartPin(ProxyGraph, OutputPin.Value, EHeartPinDirection::Output));
+				TSharedPtr<const FVoxelPin> Pin = SerializedNode.VoxelNode->FindPin(OutputPin.Key);
+				NewProxy->AddPin(Converters::VoxelPinToHeartPin(ProxyGraph,
+					OutputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Output));
 			}
 
 			NewProxy->CleanedName = FText::FromName(SerializedNode.EdGraphNodeTitle);

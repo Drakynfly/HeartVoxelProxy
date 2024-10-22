@@ -6,13 +6,14 @@
 #include "VoxelPinValue.h"
 #include "Model/HeartGraphPinDesc.h"
 
+struct FVoxelPinMetadata;
 struct FVoxelSerializedPin;
 class UVoxelProxyGraph;
 
 namespace Converters
 {
 	/* Convert a VoxelSerializedPin to a Heart Pin Desc. Uses the owning Proxy Graph to reuse Metadata to wrap the pin type. */
-	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const EHeartPinDirection PinDirection);
+	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const FVoxelPinMetadata& PinMetadata, const EHeartPinDirection PinDirection);
 
 	FInstancedStruct VoxelInstancedStructDecay(const FVoxelInstancedStruct& Value);
 	FVoxelInstancedStruct VoxelInstancedStructWrap(const FInstancedStruct& Value);

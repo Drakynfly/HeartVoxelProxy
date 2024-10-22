@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NativeGameplayTags.h"
+#include "VoxelNode.h"
 #include "VoxelPinType.h"
 #include "Model/HeartGraphPinMetadata.h"
 
@@ -34,6 +35,22 @@ enum class EVoxelPinProxyType : uint8
 	Struct
 };
 
+UENUM(BlueprintType)
+enum class EVoxelPinProxyStructType : uint8
+{
+	// Exposed as an InstancedStruct
+	Generic,
+
+	// Exposed as an FName
+	VoxelChannelName,
+
+	// Exposed as an FString
+	VoxelExposedSeed,
+
+	// Exposed as a uint8
+	BodyInstance
+};
+
 UCLASS()
 class UHeartVoxelPinTypeWrapper : public UHeartGraphPinMetadata
 {
@@ -50,6 +67,9 @@ public:
 	EVoxelPinProxyType GetPinType() const;
 
 	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	EVoxelPinProxyStructType GetPinStructType() const;
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
 	FLinearColor GetPinColor() const;
 
 	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
@@ -57,4 +77,37 @@ public:
 
 	UPROPERTY()
 	FVoxelPinType PinType;
+};
+
+UCLASS()
+class UHeartVoxelPerPinMetadata : public UHeartGraphPinMetadata
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetHidePin() const { return PinMetadata.bHidePin; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetArrayPin() const { return PinMetadata.bArrayPin; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetVirtualPin() const { return PinMetadata.bVirtualPin; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetConstantPin() const { return PinMetadata.bConstantPin; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetOptionalPin() const { return PinMetadata.bOptionalPin; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetDisplayLast() const { return PinMetadata.bDisplayLast; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetNoDefault() const { return PinMetadata.bNoDefault; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	bool GetShowInDetail() const { return PinMetadata.bShowInDetail; }
+
+	FVoxelPinMetadata PinMetadata;
 };
