@@ -29,6 +29,9 @@ public:
 	virtual FText GetNodeTitle_Implementation(const UObject* Node) const override;
 	virtual FLinearColor GetNodeTitleColor_Implementation(const UObject* Node) const override;
 
+	/* Push Heart Pin connections to Voxel Graph */
+	void SyncPinConnections(const FHeartPinGuid& Pin);
+
 	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Editing")
 	void SetPinDefaultValue(FName Pin, const FBloodValue& Value);
 

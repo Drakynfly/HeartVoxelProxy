@@ -2,11 +2,19 @@
 
 #pragma once
 
-#include "VoxelSerializedGraph.h"
+#include "VoxelPinType.h"
 #include "Model/HeartGraph.h"
 #include "VoxelProxyGraph.generated.h"
 
 class UHeartVoxelPinTypeWrapper;
+
+enum EHVPEditType
+{
+	None = 0,
+	SerializedGraph = 1 << 0,
+	CompiledGraph = 1 << 1
+};
+ENUM_CLASS_FLAGS(EHVPEditType)
 
 using FHVPEvent = TMulticastDelegate<void()>;
 
@@ -18,16 +26,31 @@ class HEARTVOXELPROXY_API UVoxelProxyGraph : public UHeartGraph
 {
 	GENERATED_BODY()
 
-public:
-	FHVPEvent::RegistrationType& GetOnPinDefaultValueChanged() { return OnPinDefaultValueChanged; }
+protected:
+	/* Voxel Graphs don't store their positions at runtime, so we don't have anything to handle here */
+	//virtual void HandleNodeMoveEvent(const FHeartNodeMoveEvent& Event) override;
 
-	void NotifyPinDefaultValueChanged();
+	/* Propagate Heart Connections to Voxel */
+	virtual void HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event) override;
+
+public:
+	void SetInitialized();
+
+	FHVPEvent::RegistrationType& GetOnVoxelSerializedGraphEdited() { return OnVoxelSerializedGraphEdited; }
+	FHVPEvent::RegistrationType& GetOnVoxelCompiledGraphEdited() { return OnVoxelCompiledGraphEdited; }
+
+	void NotifyVoxelGraphEdited(EHVPEditType Type);
 
 	UHeartVoxelPinTypeWrapper* GetTypeMetadata(const FVoxelPinType& Type);
 
 protected:
-	FHVPEvent OnPinDefaultValueChanged;
+	FHVPEvent OnVoxelSerializedGraphEdited;
+	FHVPEvent OnVoxelCompiledGraphEdited;
 
+	// Cached PinTypeWrappers to reuse across pins with the same type.
 	UPROPERTY()
 	TMap<FVoxelPinType, TObjectPtr<UHeartVoxelPinTypeWrapper>> TypeMetadata;
+
+	// Has this proxy finished initial sync with Voxel Graph
+	bool Initialized = false;
 };

@@ -6,7 +6,7 @@ public class HeartVoxelProxy : ModuleRules
 {
 	public HeartVoxelProxy(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		HeartCore.ApplySharedModuleSetup(this, Target);
 
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -14,6 +14,7 @@ public class HeartVoxelProxy : ModuleRules
 				"Blood",
 				"Core",
 				"GameplayTags",
+				"HeartCore",
 				"Heart",
 				"VoxelCore",
 				"VoxelGraphCore"

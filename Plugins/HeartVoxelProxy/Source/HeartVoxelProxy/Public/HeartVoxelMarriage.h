@@ -5,18 +5,14 @@
 #include "Components/ActorComponent.h"
 #include "HeartVoxelMarriage.generated.h"
 
-struct FVoxelSerializedGraph;
 class AVoxelActor;
-class UVoxelProxyGraph;
 class UVoxelGraph;
+class UVoxelProxyGraph;
 
 UCLASS(ClassGroup = ("Heart/Voxel"), meta = (BlueprintSpawnableComponent))
 class HEARTVOXELPROXY_API UHeartVoxelMarriage : public UActorComponent
 {
 	GENERATED_BODY()
-
-private:
-	FVoxelSerializedGraph& GetSerializedGraph_Mutable();
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Setup")

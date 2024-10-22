@@ -21,6 +21,15 @@ namespace NodeColors
 	static constexpr FLinearColor White(FLinearColor(1.f, 1.f, 1.f, 1.f));
 }
 
+using FCachedCompiledGraphType = TOptional<TSharedPtr<const Voxel::Graph::FGraph>>;
+
+ACCESS_CREATE_TAG(TheCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
+
+namespace Voxel::Graph
+{
+	ACCESS_CREATE_TAG(FPin_LinkedTo, FPin, LinkedTo);
+}
+
 FText UVoxelProxyNode::GetNodeTitle_Implementation(const UObject* Node) const
 {
 	if (!CleanedName.IsEmpty())
@@ -44,38 +53,181 @@ FLinearColor UVoxelProxyNode::GetNodeTitleColor_Implementation(const UObject* No
 	}
 }
 
-using FCachedCompiledGraphType = TOptional<TSharedPtr<const Voxel::Graph::FGraph>>;
-ACCESS_CREATE_TAG(TheCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
+enum ELinkCombo
+{
+	NoLinks,
+	HeartHasLinks = 1,
+	VoxelHasLinks = 2,
+	BothHaveLinks = HeartHasLinks | VoxelHasLinks
+};
+ENUM_CLASS_FLAGS(ELinkCombo)
+
+void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
+{
+	const UVoxelTerminalGraph& Terminal = ProxiedNodeRef.TerminalGraphRef.Graph->GetMainTerminalGraph();
+	const UVoxelTerminalGraphRuntime& Runtime = Terminal.GetRuntime();
+
+	EHVPEditType Type = EHVPEditType::None;
+
+	// Get pin name
+	const auto SelfDesc = GetPinDesc(Pin);
+
+	ELinkCombo Links = NoLinks;
+	Links |= HasConnections(Pin) ? HeartHasLinks : NoLinks;
+
+	// Sync the Serialized Graph
+	FVoxelSerializedGraph& SerializedGraph = ConstCast(Runtime.GetSerializedGraph());
+	FVoxelSerializedNode& SerializedNode = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName];
+	if (FVoxelSerializedPin* SerializedPin = SerializedNode.InputPins.Find(SelfDesc->Name))
+	{
+		Links |= !SerializedPin->LinkedTo.IsEmpty() ? VoxelHasLinks : NoLinks;
+
+		switch (Links)
+		{
+		case NoLinks:
+			// All synced!
+			break;
+		case VoxelHasLinks:
+			// There are no connections on the heart side, remove all voxel links.
+			SerializedPin->LinkedTo.Reset();
+			Type |= EHVPEditType::SerializedGraph;
+			break;
+		case BothHaveLinks:
+			// Reset Voxel links, then fall into the HeartHasLinks path...
+			SerializedPin->LinkedTo.Reset();
+		case HeartHasLinks:
+			// There are no connections on the voxel side, add all heart links.
+			{
+				const FHeartGraphPinConnections HeartConnections = GetConnections(Pin).GetValue();
+				for (const FHeartGraphPinReference& Connection : HeartConnections)
+				{
+					const UVoxelProxyNode* ProxyNode = GetGraph()->GetNode<UVoxelProxyNode>(Connection.NodeGuid);
+
+					FVoxelSerializedPinRef VoxelPinRef;
+
+					VoxelPinRef.NodeName = ProxyNode->ProxiedNodeRef.EdGraphNodeName;
+					VoxelPinRef.PinName = ProxyNode->GetPinDesc(Connection.PinGuid)->Name;
+
+					// Link is an input if we are an output.
+					VoxelPinRef.bIsInput = SelfDesc->Direction == EHeartPinDirection::Output;
+
+					SerializedPin->LinkedTo.Add(VoxelPinRef);
+				}
+			}
+			Type |= EHVPEditType::SerializedGraph;
+			break;
+		}
+	}
+
+	// Sync the Compiled Graph
+	FCachedCompiledGraphType CompiledGraph = access::get<TheCompiledGraph>(Runtime);
+	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
+	{
+		Voxel::Graph::FGraph* GraphPtr = ConstCast(CompiledGraph.GetValue().Get());
+		for (Voxel::Graph::FNode* NodePtr : GraphPtr->GetNodesArray())
+		{
+			if (NodePtr->NodeRef.NodeId != ProxiedNodeRef.NodeId) continue;
+
+			Voxel::Graph::FPin* PinPtr = NodePtr->FindPin(SelfDesc->Name);
+			if (!PinPtr) return;
+			Voxel::Graph::FPin& VoxelPin = *PinPtr;
+
+			// Clear this flag from when we set it previously, and reset with new value
+			EnumRemoveFlags(Links, VoxelHasLinks);
+			Links |= !access::get<Voxel::Graph::FPin_LinkedTo>(VoxelPin).IsEmpty() ? VoxelHasLinks : NoLinks;
+
+			switch (Links)
+			{
+			case NoLinks:
+				// All synced!
+				break;
+			case VoxelHasLinks:
+				// There are no connections on the heart side, remove all voxel links.
+				PinPtr->BreakAllLinks();
+				Type |= EHVPEditType::CompiledGraph;
+				break;
+			case BothHaveLinks:
+				// Reset Voxel links, then fall into the HeartHasLinks path...
+				PinPtr->BreakAllLinks();
+			case HeartHasLinks:
+				// There are no connections on the voxel side, add all heart links.
+				{
+					const FHeartGraphPinConnections HeartConnections = GetConnections(Pin).GetValue();
+					for (const FHeartGraphPinReference& Connection : HeartConnections)
+					{
+						const UVoxelProxyNode* ProxyNode = GetGraph()->GetNode<UVoxelProxyNode>(Connection.NodeGuid);
+						const FName ProxyPin = ProxyNode->GetPinDesc(Connection.PinGuid)->Name;
+
+						for (Voxel::Graph::FNode* NodePtrB : GraphPtr->GetNodesArray())
+						{
+							if (NodePtrB->NodeRef.NodeId != ProxyNode->ProxiedNodeRef.NodeId) continue;
+							if (Voxel::Graph::FPin* PinPtrB = NodePtrB->FindPin(ProxyPin))
+							{
+								VoxelPin.MakeLinkTo(*PinPtrB);
+							}
+							break;
+						}
+					}
+				}
+				Type |= EHVPEditType::CompiledGraph;
+				break;
+			}
+			break;
+		}
+	}
+
+	if (Type != None)
+	{
+		GetOwningGraph<UVoxelProxyGraph>()->NotifyVoxelGraphEdited(Type);
+	}
+}
 
 void UVoxelProxyNode::SetPinDefaultValue(const FName Pin, const FBloodValue& Value)
 {
 	const UVoxelTerminalGraph& Terminal = ProxiedNodeRef.TerminalGraphRef.Graph->GetMainTerminalGraph();
 	UVoxelTerminalGraphRuntime& Runtime = Terminal.GetRuntime();
 
+	EHVPEditType Type = EHVPEditType::None;
+
 	// Set value on Serialized Graph
-	FVoxelSerializedGraph& SerializedGraph = const_cast<FVoxelSerializedGraph&>(Runtime.GetSerializedGraph());
-	if (auto&& SerializedPin = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName].InputPins.Find(Pin))
+	FVoxelSerializedGraph& SerializedGraph = ConstCast(Runtime.GetSerializedGraph());
+	FVoxelSerializedNode& SerializedNode = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName];
+	if (auto&& SerializedPin = SerializedNode.InputPins.Find(Pin))
 	{
-		SerializedPin->DefaultValue = Converters::BloodToVoxelPin(Value, SerializedPin->Type);
+		if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, SerializedPin->Type);
+			NewValue != SerializedPin->DefaultValue)
+		{
+			SerializedPin->DefaultValue = NewValue;
+			Type |= EHVPEditType::SerializedGraph;
+		}
 	}
 
 	// Set value on Compiled Graph
 	FCachedCompiledGraphType CompiledGraph = access::get<TheCompiledGraph>(Runtime);
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
-		const Voxel::Graph::FGraph* GraphPtr = CompiledGraph.GetValue().Get();
-		for (const Voxel::Graph::FNode& NodeAddr : GraphPtr->GetNodes())
+		Voxel::Graph::FGraph* GraphPtr = ConstCast(CompiledGraph.GetValue().Get());
+		for (Voxel::Graph::FNode* NodePtr : GraphPtr->GetNodesArray())
 		{
-			if (NodeAddr.NodeRef != ProxiedNodeRef) continue;
+			if (NodePtr->NodeRef.NodeId != ProxiedNodeRef.NodeId) continue;
 
-			Voxel::Graph::FPin* PinPtr = const_cast<Voxel::Graph::FNode&>(NodeAddr).FindPin(Pin);
+			Voxel::Graph::FPin* PinPtr = NodePtr->FindPin(Pin);
 			if (!PinPtr) return;
 
-			PinPtr->SetDefaultValue(Converters::BloodToVoxelPin(Value, PinPtr->Type));
+			if (const FVoxelPinValue NewValue = Converters::BloodToVoxelPin(Value, PinPtr->Type);
+				NewValue != PinPtr->GetDefaultValue())
+			{
+				PinPtr->SetDefaultValue(NewValue);
+				Type |= EHVPEditType::CompiledGraph;
+			}
+			break;
 		}
 	}
 
-	GetOwningGraph<UVoxelProxyGraph>()->NotifyPinDefaultValueChanged();
+	if (Type != None)
+	{
+		GetOwningGraph<UVoxelProxyGraph>()->NotifyVoxelGraphEdited(Type);
+	}
 }
 
 FBloodValue UVoxelProxyNode::GetPinDefaultValue(const FName Pin) const

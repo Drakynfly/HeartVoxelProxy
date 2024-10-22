@@ -16,9 +16,14 @@
 
 void UHeartVoxelMarriage::GenerateProxyFromVoxelGraph(UVoxelGraph* Graph)
 {
+	if (!ensure(IsValid(Graph)))
+	{
+		return;
+	}
+
 	RuntimeGraph = DuplicateObject(Graph, this);
 	ProxyGraph = NewObject<UVoxelProxyGraph>(this);
-	ProxyGraph->GetOnPinDefaultValueChanged().AddUObject(this, &ThisClass::RestartVoxelGraph);
+	ProxyGraph->GetOnVoxelCompiledGraphEdited().AddUObject(this, &ThisClass::RestartVoxelGraph);
 
 	const UVoxelTerminalGraph& Terminal = RuntimeGraph->GetMainTerminalGraph();
 	const UVoxelTerminalGraphRuntime& Runtime = Terminal.GetRuntime();
@@ -122,6 +127,8 @@ void UHeartVoxelMarriage::GenerateProxyFromVoxelGraph(UVoxelGraph* Graph)
 			}
 		}
 	}
+
+	ProxyGraph->SetInitialized();
 
 	SyncWithVoxelActor();
 }

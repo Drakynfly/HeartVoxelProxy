@@ -107,6 +107,11 @@ namespace Converters
 		return FBloodValue();
 	}
 
+	bool IsNumeric(const FBloodValue& Value)
+	{
+		return Value.Is<float>() || Value.Is<double>() || Value.Is<uint8>() || Value.Is<int32>() || Value.Is<int64>();
+	}
+
 	FVoxelPinValue BloodToVoxelPin(const FBloodValue& Value, const FVoxelPinType& ExpectedType)
 	{
 		if (!Value.IsValid()) return FVoxelPinValue();
@@ -125,26 +130,24 @@ namespace Converters
 				if (Value.Is<bool>()) return FVoxelPinValue::Make(Value.GetValue<bool>());
 				break;
 			case EVoxelPropertyInternalType::Float:
-				if (Value.Is<float>() || Value.Is<double>())
-					return FVoxelPinValue::Make(Value.GetValue<float>());
+				if (IsNumeric(Value)) return FVoxelPinValue::Make(Value.GetValue<float>());
 				break;
 			case EVoxelPropertyInternalType::Double:
-				if (Value.Is<float>() || Value.Is<double>())
-					return FVoxelPinValue::Make(Value.GetValue<double>());
+				if (IsNumeric(Value)) return FVoxelPinValue::Make(Value.GetValue<double>());
 				break;
 			case EVoxelPropertyInternalType::Int32:
-				if (Value.Is<int32>() || Value.Is<int64>())
-					return FVoxelPinValue::Make(Value.GetValue<int32>());
+				if (IsNumeric(Value)) return FVoxelPinValue::Make(Value.GetValue<int32>());
 				break;
 			case EVoxelPropertyInternalType::Int64:
-				if (Value.Is<int32>() || Value.Is<int64>())
-					return FVoxelPinValue::Make(Value.GetValue<int64>());
+				if (IsNumeric(Value)) return FVoxelPinValue::Make(Value.GetValue<int64>());
 				break;
 			case EVoxelPropertyInternalType::Name:
 				if (Value.Is<FName>()) return FVoxelPinValue::Make(Value.GetValue<FName>());
+				if (Value.Is<FString>()) return FVoxelPinValue::Make(FName(Value.GetValue<FString>()));
+				if (Value.Is<FText>()) return FVoxelPinValue::Make(FName(Value.GetValue<FText>().ToString()));
 				break;
 			case EVoxelPropertyInternalType::Byte:
-				if (Value.Is<uint8>()) return FVoxelPinValue::Make(Value.GetValue<uint8>());
+				if (IsNumeric(Value)) return FVoxelPinValue::Make(Value.GetValue<uint8>());
 				break;
 			case EVoxelPropertyInternalType::Class:
 				if (Value.Is<TSubclassOf<UObject>>()) return FVoxelPinValue::Make(Value.GetValue<TSubclassOf<UObject>>());
