@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "VoxelGraphNodeRef.h"
 #include "VoxelPinType.h"
 #include "Model/HeartGraph.h"
 #include "VoxelProxyGraph.generated.h"
 
+struct FBloodValue;
 class UHeartVoxelPinTypeWrapper;
 
 enum EHVPEditType
@@ -34,7 +36,7 @@ protected:
 	virtual void HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event) override;
 
 public:
-	void SetInitialized();
+	void SetInitialized(const FVoxelTerminalGraphRef& GraphRef);
 
 	FHVPEvent::RegistrationType& GetOnVoxelSerializedGraphEdited() { return OnVoxelSerializedGraphEdited; }
 	FHVPEvent::RegistrationType& GetOnVoxelCompiledGraphEdited() { return OnVoxelCompiledGraphEdited; }
@@ -43,9 +45,24 @@ public:
 
 	UHeartVoxelPinTypeWrapper* GetTypeMetadata(const FVoxelPinType& Type);
 
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	TArray<FName> GetParameterNames() const;
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	UHeartVoxelPinTypeWrapper* GetParameterPinType(FName Name);
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	FBloodValue GetParameterValue(FName Name) const;
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	void SetParameterValue(FName Name, const FBloodValue& Value);
+
 protected:
 	FHVPEvent OnVoxelSerializedGraphEdited;
 	FHVPEvent OnVoxelCompiledGraphEdited;
+
+	UPROPERTY()
+	FVoxelTerminalGraphRef TerminalGraphRef;
 
 	// Cached PinTypeWrappers to reuse across pins with the same type.
 	UPROPERTY()

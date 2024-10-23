@@ -1,9 +1,16 @@
 ﻿// Copyright Guy (Drakynfly) Lundvall. All Rights Reserved.
 
 #include "Proxy/VoxelProxyGraph.h"
-#include "Model/HeartGraphNode.h"
+#include "Proxy/VoxelProxyConverters.h"
 #include "Proxy/VoxelProxyNode.h"
 #include "Proxy/VoxelProxyPin.h"
+
+#include "Model/HeartGraphNode.h"
+
+#include "VoxelGraph.h"
+#include "VoxelGraphParametersView.h"
+#include "VoxelParameterView.h"
+
 
 void UVoxelProxyGraph::HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event)
 {
@@ -29,9 +36,10 @@ void UVoxelProxyGraph::HandleGraphConnectionEvent(const FHeartGraphConnectionEve
 	}
 }
 
-void UVoxelProxyGraph::SetInitialized()
+void UVoxelProxyGraph::SetInitialized(const FVoxelTerminalGraphRef& GraphRef)
 {
 	check(!Initialized);
+	TerminalGraphRef = GraphRef;
 	Initialized = true;
 }
 
@@ -58,4 +66,67 @@ UHeartVoxelPinTypeWrapper* UVoxelProxyGraph::GetTypeMetadata(const FVoxelPinType
 	NewMetadata->PinType = Type;
 	TypeMetadata.Add(Type, NewMetadata);
 	return NewMetadata;
+}
+
+TArray<FName> UVoxelProxyGraph::GetParameterNames() const
+{
+	const UVoxelGraph* Graph = TerminalGraphRef.Graph.Get();
+	const TSharedPtr<FVoxelGraphParametersView> ParametersView = Graph->GetParametersView();
+	if (!ParametersView)
+	{
+		return {};
+	}
+
+	TArray<FName> Names;
+	Names.Reserve(ParametersView->GetChildren().Num());
+	for (const FVoxelParameterView* ParameterView : ParametersView->GetChildren())
+	{
+		Names.Add(ParameterView->GetName());
+	}
+	return Names;
+}
+
+UHeartVoxelPinTypeWrapper* UVoxelProxyGraph::GetParameterPinType(const FName Name)
+{
+	const UVoxelGraph* Graph = TerminalGraphRef.Graph.Get();
+	if (!Graph)
+	{
+		return nullptr;
+	}
+	const TSharedPtr<FVoxelGraphParametersView> ParametersView = Graph->GetParametersView();
+	if (!ParametersView)
+	{
+		return nullptr;
+	}
+
+	if (const FVoxelParameterView* ParameterView = ParametersView->FindByName(Name))
+	{
+		return GetTypeMetadata(ParameterView->GetType());
+	}
+	return nullptr;
+}
+
+FBloodValue UVoxelProxyGraph::GetParameterValue(const FName Name) const
+{
+	const UVoxelGraph* Graph = TerminalGraphRef.Graph.Get();
+	if (!Graph)
+	{
+		return FBloodValue();
+	}
+	return Converters::VoxelPinToBlood(Graph->GetParameter(Name));
+}
+
+void UVoxelProxyGraph::SetParameterValue(const FName Name, const FBloodValue& Value)
+{
+	UVoxelGraph* Graph = ConstCast(TerminalGraphRef.Graph.Get());
+	if (!Graph)
+	{
+		return;
+	}
+	auto PinTypeWrapper = GetParameterPinType(Name);
+	if (!PinTypeWrapper)
+	{
+		return;
+	}
+	Graph->SetParameter(Name, Converters::BloodToVoxelPin(Value, PinTypeWrapper->PinType));
 }

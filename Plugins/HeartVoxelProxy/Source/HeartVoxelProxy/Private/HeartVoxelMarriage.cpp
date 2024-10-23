@@ -133,7 +133,7 @@ void UHeartVoxelMarriage::GenerateProxyFromVoxelGraph(UVoxelGraph* Graph)
 		}
 	}
 
-	ProxyGraph->SetInitialized();
+	ProxyGraph->SetInitialized(TerminalGraphRef);
 
 	SyncWithVoxelActor();
 }
