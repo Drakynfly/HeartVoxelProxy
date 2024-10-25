@@ -7,6 +7,8 @@
 #include "Channel/VoxelChannelName.h"
 #include "Point/VoxelPointSet.h"
 
+#include "access/access.h"
+
 namespace PinColors
 {
 	// graph node pin type colors
@@ -48,6 +50,8 @@ namespace VoxelPinTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(HeartPinTag_Voxel, "Heart.Pin.Voxel")
 }
+
+ACCESS_CREATE_TAG(FGetInternalField, FVoxelPinType, GetInternalField);
 
 EVoxelPinProxyType UHeartVoxelPinTypeWrapper::GetPinType() const
 {
@@ -160,6 +164,11 @@ EVoxelPinProxyStructType UHeartVoxelPinTypeWrapper::GetPinStructType() const
 	}
 
 	return EVoxelPinProxyStructType::Generic;
+}
+
+const UField* UHeartVoxelPinTypeWrapper::GetFieldFilter() const
+{
+	return access::call<FGetInternalField>(PinType);
 }
 
 // Implementation based on FVoxelGraphVisuals::GetPinColor

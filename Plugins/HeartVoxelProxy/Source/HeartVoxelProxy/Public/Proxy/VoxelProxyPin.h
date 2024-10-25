@@ -69,6 +69,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
 	EVoxelPinProxyStructType GetPinStructType() const;
 
+	/* Get the field object used to filter values when in Enum/Struct/Object/Class modes. */
+	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
+	const UField* GetFieldFilter() const;
+
 	UFUNCTION(BlueprintCallable, Category = "VoxelPinType")
 	FLinearColor GetPinColor() const;
 

@@ -40,7 +40,7 @@ namespace Converters
 			{
 				const FVoxelSerializedNode& SerializedNode = NameAndSerializedNode.Value;
 
-				NodeEdit.Create_Instanced(
+				NodeEdit.Create_Reference(
 					UVoxelProxyNode::StaticClass(),
 					UVoxelProxyDummy::StaticClass(),
 					FVector2D::ZeroVector);

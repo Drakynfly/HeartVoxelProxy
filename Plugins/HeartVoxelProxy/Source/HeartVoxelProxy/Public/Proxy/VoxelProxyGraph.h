@@ -4,6 +4,7 @@
 
 #include "VoxelGraphNodeRef.h"
 #include "VoxelPinType.h"
+#include "General/ObjectTree.h"
 #include "Model/HeartGraph.h"
 #include "VoxelProxyGraph.generated.h"
 
@@ -27,6 +28,9 @@ UCLASS()
 class HEARTVOXELPROXY_API UVoxelProxyGraph : public UHeartGraph
 {
 	GENERATED_BODY()
+
+public:
+	UVoxelProxyGraph();
 
 protected:
 	/* Voxel Graphs don't store their positions at runtime, so we don't have anything to handle here */
@@ -57,6 +61,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
 	void SetParameterValue(FName Name, const FBloodValue& Value);
 
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	UHeartObjectTree* GetAssetPicker() const { return { AssetPickerOptions }; }
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	UHeartObjectTree* GetClassPicker() const { return { ClassPickerOptions }; }
+
 protected:
 	FHVPEvent OnVoxelSerializedGraphEdited;
 	FHVPEvent OnVoxelCompiledGraphEdited;
@@ -67,6 +77,12 @@ protected:
 	// Cached PinTypeWrappers to reuse across pins with the same type.
 	UPROPERTY()
 	TMap<FVoxelPinType, TObjectPtr<UHeartVoxelPinTypeWrapper>> TypeMetadata;
+
+	UPROPERTY()
+	TObjectPtr<UHeartObjectTree> AssetPickerOptions;
+
+	UPROPERTY()
+	TObjectPtr<UHeartObjectTree> ClassPickerOptions;
 
 	// Has this proxy finished initial sync with Voxel Graph
 	bool Initialized = false;

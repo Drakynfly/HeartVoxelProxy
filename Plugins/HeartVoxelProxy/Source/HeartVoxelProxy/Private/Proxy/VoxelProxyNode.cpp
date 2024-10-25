@@ -23,11 +23,11 @@ namespace NodeColors
 
 using FCachedCompiledGraphType = TOptional<TSharedPtr<const Voxel::Graph::FGraph>>;
 
-ACCESS_CREATE_TAG(TheCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
+ACCESS_CREATE_TAG(FCachedCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
 
 namespace Voxel::Graph
 {
-	ACCESS_CREATE_TAG(FPin_LinkedTo, FPin, LinkedTo);
+	ACCESS_CREATE_TAG(FLinkedTo, FPin, LinkedTo);
 }
 
 FText UVoxelProxyNode::GetNodeTitle_Implementation(const UObject* Node) const
@@ -120,7 +120,7 @@ void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
 	}
 
 	// Sync the Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<TheCompiledGraph>(Runtime);
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(Runtime);
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
 		Voxel::Graph::FGraph* GraphPtr = ConstCast(CompiledGraph.GetValue().Get());
@@ -134,7 +134,7 @@ void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
 
 			// Clear this flag from when we set it previously, and reset with new value
 			EnumRemoveFlags(Links, VoxelHasLinks);
-			Links |= !access::get<Voxel::Graph::FPin_LinkedTo>(VoxelPin).IsEmpty() ? VoxelHasLinks : NoLinks;
+			Links |= !access::get<Voxel::Graph::FLinkedTo>(VoxelPin).IsEmpty() ? VoxelHasLinks : NoLinks;
 
 			switch (Links)
 			{
@@ -206,7 +206,7 @@ void UVoxelProxyNode::SetPinDefaultValue(const FName Pin, const FBloodValue& Val
 	}
 
 	// Set value on Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<TheCompiledGraph>(Runtime);
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(Runtime);
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
 		Voxel::Graph::FGraph* GraphPtr = ConstCast(CompiledGraph.GetValue().Get());

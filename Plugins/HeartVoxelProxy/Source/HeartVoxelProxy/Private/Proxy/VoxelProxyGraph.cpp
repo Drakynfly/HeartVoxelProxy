@@ -10,7 +10,14 @@
 #include "VoxelGraph.h"
 #include "VoxelGraphParametersView.h"
 #include "VoxelParameterView.h"
+#include "General/ObjectTree.h"
 
+
+UVoxelProxyGraph::UVoxelProxyGraph()
+{
+	AssetPickerOptions = CreateDefaultSubobject<UHeartObjectTree>(TEXT("AssetPickerOptions"));
+	ClassPickerOptions = CreateDefaultSubobject<UHeartObjectTree>(TEXT("ClassPickerOptions"));
+}
 
 void UVoxelProxyGraph::HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event)
 {

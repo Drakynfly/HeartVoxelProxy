@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include "VoxelExposedSeed.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "HeartVoxelBlueprintLibrary.generated.h"
+
+struct FVoxelExposedSeed;
 
 /**
  *
@@ -19,9 +20,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Voxel", meta = (WorldContext = "ContextObject"))
 	static TArray<FName> GetAllVoxelChannels(UObject* ContextObject);
 
-	UFUNCTION(BlueprintCallable, Category = "Voxel")
-	static TArray<FText> GetCollisionTypeOptions();
-
-	UFUNCTION(BlueprintPure, Category = "Voxel", meta = (WorldContext = "ContextObject"))
+	UFUNCTION(BlueprintPure, Category = "Voxel")
 	static FVoxelExposedSeed MakeRandomVoxelSeed();
 };
