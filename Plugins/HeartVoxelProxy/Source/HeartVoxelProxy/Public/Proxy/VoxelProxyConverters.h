@@ -3,6 +3,7 @@
 #pragma once
 
 #include "BloodValue.h"
+#include "VoxelGraph.h"
 #include "VoxelPinValue.h"
 #include "Model/HeartGraphPinDesc.h"
 
@@ -12,6 +13,8 @@ class UVoxelProxyGraph;
 
 namespace Converters
 {
+	UVoxelProxyGraph* CreateVoxelProxy(UObject* Outer, UVoxelGraph* GraphToProxy);
+
 	/* Convert a VoxelSerializedPin to a Heart Pin Desc. Uses the owning Proxy Graph to reuse Metadata to wrap the pin type. */
 	FHeartGraphPinDesc VoxelPinToHeartPin(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedPin& InPin, const FVoxelPinMetadata& PinMetadata, const EHeartPinDirection PinDirection);
 

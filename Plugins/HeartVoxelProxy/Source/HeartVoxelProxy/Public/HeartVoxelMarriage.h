@@ -9,18 +9,36 @@ class AVoxelActor;
 class UVoxelGraph;
 class UVoxelProxyGraph;
 
+/**
+ * A sample implementation of binding a VoxelGraph to a HeartGraph.
+ *
+ * To use:
+ * 1. Add to any actor. The player controller works fine.
+ * 2. Call any of the three "SetupWith..." functions.
+ * 3. Call SetVoxelActor
+ */
 UCLASS(ClassGroup = ("Heart/Voxel"), meta = (BlueprintSpawnableComponent))
 class HEARTVOXELPROXY_API UHeartVoxelMarriage : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
+	// Init with a new blank graph
 	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Setup")
-	void GenerateProxyFromVoxelGraph(UVoxelGraph* Graph);
+	void SetupWithBlank();
+
+	// Init with a reference to a graph to edit (do not call this with assets)
+	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Setup")
+	void SetupWithExisting(UVoxelGraph* Graph);
+
+	// Init by copying an existing graph
+	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Setup")
+	void SetupWithCopy(const UVoxelGraph* Graph);
 
 	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Setup")
 	void SetVoxelActor(AVoxelActor* Actor);
 
+protected:
 	void SyncWithVoxelActor();
 
 	void RestartVoxelGraph();
