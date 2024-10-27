@@ -53,14 +53,28 @@ FLinearColor UVoxelProxyNode::GetNodeTitleColor_Implementation(const UObject* No
 	}
 }
 
-enum ELinkCombo
+enum ESyncType
 {
 	NoLinks,
 	HeartHasLinks = 1,
 	VoxelHasLinks = 2,
 	BothHaveLinks = HeartHasLinks | VoxelHasLinks
 };
-ENUM_CLASS_FLAGS(ELinkCombo)
+ENUM_CLASS_FLAGS(ESyncType)
+
+void SetDisconnectedPinDefaultValue(Voxel::Graph::FPin& Pin)
+{
+	if (!Pin.Type.HasPinDefaultValue() ||
+		Pin.Type.IsBuffer() ||
+		Pin.Type.IsBufferArray())
+	{
+		return;
+	}
+
+	// @todo can we get the default value from the SerializedGraph instead?
+	const FVoxelPinValue DefaultValue = FVoxelPinValue(Pin.Type);
+	Pin.SetDefaultValue(DefaultValue);
+}
 
 void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
 {
@@ -72,17 +86,17 @@ void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
 	// Get pin name
 	const auto SelfDesc = GetPinDesc(Pin);
 
-	ELinkCombo Links = NoLinks;
-	Links |= HasConnections(Pin) ? HeartHasLinks : NoLinks;
+	ESyncType SyncType = NoLinks;
+	SyncType |= HasConnections(Pin) ? HeartHasLinks : NoLinks;
 
 	// Sync the Serialized Graph
 	FVoxelSerializedGraph& SerializedGraph = ConstCast(Runtime.GetSerializedGraph());
 	FVoxelSerializedNode& SerializedNode = SerializedGraph.NodeNameToNode[ProxiedNodeRef.EdGraphNodeName];
 	if (FVoxelSerializedPin* SerializedPin = SerializedNode.InputPins.Find(SelfDesc->Name))
 	{
-		Links |= !SerializedPin->LinkedTo.IsEmpty() ? VoxelHasLinks : NoLinks;
+		SyncType |= !SerializedPin->LinkedTo.IsEmpty() ? VoxelHasLinks : NoLinks;
 
-		switch (Links)
+		switch (SyncType)
 		{
 		case NoLinks:
 			// All synced!
@@ -133,22 +147,46 @@ void UVoxelProxyNode::SyncPinConnections(const FHeartPinGuid& Pin)
 			Voxel::Graph::FPin& VoxelPin = *PinPtr;
 
 			// Clear this flag from when we set it previously, and reset with new value
-			EnumRemoveFlags(Links, VoxelHasLinks);
-			Links |= !access::get<Voxel::Graph::FLinkedTo>(VoxelPin).IsEmpty() ? VoxelHasLinks : NoLinks;
+			EnumRemoveFlags(SyncType, VoxelHasLinks);
+			SyncType |= !access::get<Voxel::Graph::FLinkedTo>(VoxelPin).IsEmpty() ? VoxelHasLinks : NoLinks;
 
-			switch (Links)
+			switch (SyncType)
 			{
 			case NoLinks:
 				// All synced!
 				break;
 			case VoxelHasLinks:
 				// There are no connections on the heart side, remove all voxel links.
-				PinPtr->BreakAllLinks();
-				Type |= EHVPEditType::CompiledGraph;
+				{
+					bool PinIsInput = VoxelPin.Direction == Voxel::Graph::EPinDirection::Input;
+
+					// When removing all pin connections from an output we have to fill in a default value for links that will have no connections.
+					if (!PinIsInput)
+					{
+						auto&& Links = VoxelPin.GetLinkedTo();
+						for (auto&& Link : Links)
+						{
+							if (Link.GetLinkedTo().Num() == 1)
+							{
+								SetDisconnectedPinDefaultValue(Link);
+							}
+						}
+					}
+
+					VoxelPin.BreakAllLinks();
+
+					// When removing all pin connections from an input we have to fill in a default value.
+					if (PinIsInput)
+					{
+						SetDisconnectedPinDefaultValue(VoxelPin);
+					}
+
+					Type |= EHVPEditType::CompiledGraph;
+				}
 				break;
 			case BothHaveLinks:
 				// Reset Voxel links, then fall into the HeartHasLinks path...
-				PinPtr->BreakAllLinks();
+				VoxelPin.BreakAllLinks();
 			case HeartHasLinks:
 				// There are no connections on the voxel side, add all heart links.
 				{
