@@ -8,6 +8,7 @@
 #include "Model/HeartGraph.h"
 #include "VoxelProxyGraph.generated.h"
 
+class UVoxelProxyNode;
 struct FBloodValue;
 class UHeartVoxelPinTypeWrapper;
 
@@ -33,19 +34,26 @@ public:
 	UVoxelProxyGraph();
 
 protected:
+	/* Propagate Heart Events to Voxel */
+	virtual void HandleNodeRemoveEvent(const FHeartNodeRemoveEvent& Event) override;
+
 	/* Voxel Graphs don't store their positions at runtime, so we don't have anything to handle here */
 	//virtual void HandleNodeMoveEvent(const FHeartNodeMoveEvent& Event) override;
 
-	/* Propagate Heart Connections to Voxel */
 	virtual void HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event) override;
+
+	void SyncNodeRemoval(const UVoxelProxyNode* Node);
+
+	/* Push Heart Pin connections to Voxel Graph */
+	void SyncPinConnections(const UVoxelProxyNode* Node, const FHeartPinGuid& Pin);
+
+	void NotifyVoxelGraphEdited(EHVPEditType Type);
 
 public:
 	void SetInitialized(const FVoxelTerminalGraphRef& GraphRef);
 
 	FHVPEvent::RegistrationType& GetOnVoxelSerializedGraphEdited() { return OnVoxelSerializedGraphEdited; }
 	FHVPEvent::RegistrationType& GetOnVoxelCompiledGraphEdited() { return OnVoxelCompiledGraphEdited; }
-
-	void NotifyVoxelGraphEdited(EHVPEditType Type);
 
 	UHeartVoxelPinTypeWrapper* GetTypeMetadata(const FVoxelPinType& Type);
 
@@ -60,6 +68,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
 	void SetParameterValue(FName Name, const FBloodValue& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxy|PinValue")
+	FBloodValue GetPinDefaultValue(FHeartNodeGuid NodeGuid, FName Pin) const;
+
+	UFUNCTION(BlueprintCallable, Category = "HeartVoxel|Editing")
+	void SetPinDefaultValue(FHeartNodeGuid NodeGuid, FName Pin, const FBloodValue& Value);
 
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
 	UHeartObjectTree* GetAssetPicker() const { return { AssetPickerOptions }; }
