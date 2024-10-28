@@ -8,6 +8,13 @@
 #include "Model/HeartGraph.h"
 #include "VoxelProxyGraph.generated.h"
 
+namespace Voxel::Graph
+{
+	class FGraph;
+	class FNode;
+}
+
+struct FVoxelSerializedGraph;
 class UVoxelProxyNode;
 struct FBloodValue;
 class UHeartVoxelPinTypeWrapper;
@@ -41,6 +48,14 @@ protected:
 	//virtual void HandleNodeMoveEvent(const FHeartNodeMoveEvent& Event) override;
 
 	virtual void HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event) override;
+
+	const FVoxelSerializedGraph* GetSerializedGraph() const;
+	FVoxelSerializedGraph* GetSerializedGraph();
+
+	const Voxel::Graph::FGraph* GetCompiledGraph() const;
+	Voxel::Graph::FGraph* GetCompiledGraph();
+
+	Voxel::Graph::FNode* GetCompiledGraphNode(FName NodeID);
 
 	void SyncNodeRemoval(const UVoxelProxyNode* Node);
 
