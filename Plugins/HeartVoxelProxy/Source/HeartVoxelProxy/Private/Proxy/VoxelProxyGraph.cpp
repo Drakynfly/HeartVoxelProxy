@@ -84,7 +84,8 @@ FVoxelSerializedGraph* UVoxelProxyGraph::GetSerializedGraph()
 const Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph() const
 {
 	// Sync the Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(Runtime);
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
+		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
 		return CompiledGraph.GetValue().Get();
@@ -95,7 +96,8 @@ const Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph() const
 Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph()
 {
 	// Sync the Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(Runtime);
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
+		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
 	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
 	{
 		return ConstCast(CompiledGraph.GetValue().Get());
@@ -125,44 +127,47 @@ void UVoxelProxyGraph::SyncNodeRemoval(const UVoxelProxyNode* Node)
 	// Sync the Serialized Graph
 	if (auto&& SerializedGraph = GetSerializedGraph())
 	{
-		FVoxelSerializedNode& SerializedNode = SerializedGraph->NodeNameToNode[Node->ProxiedNodeRef.EdGraphNodeName];
-
-		for (auto&& InputPin : SerializedNode.InputPins)
+		if (SerializedGraph->NodeNameToNode.Contains(Node->ProxiedNodeRef.EdGraphNodeName))
 		{
-			for (auto&& LinkedRef : InputPin.Value.LinkedTo)
+			FVoxelSerializedNode& SerializedNode = SerializedGraph->NodeNameToNode[Node->ProxiedNodeRef.EdGraphNodeName];
+
+			for (auto&& InputPin : SerializedNode.InputPins)
 			{
-				FVoxelSerializedNode& LinkedNode = SerializedGraph->NodeNameToNode[LinkedRef.NodeName];
-				auto& OtherLinks = LinkedNode.OutputPins[LinkedRef.PinName].LinkedTo;
-				for (int32 i = 0; i < OtherLinks.Num(); ++i)
+				for (auto&& LinkedRef : InputPin.Value.LinkedTo)
 				{
-					if (OtherLinks[i].PinName == InputPin.Key)
+					FVoxelSerializedNode& LinkedNode = SerializedGraph->NodeNameToNode[LinkedRef.NodeName];
+					auto& OtherLinks = LinkedNode.OutputPins[LinkedRef.PinName].LinkedTo;
+					for (int32 i = 0; i < OtherLinks.Num(); ++i)
 					{
-						OtherLinks.RemoveAt(i);
-						break;
+						if (OtherLinks[i].PinName == InputPin.Key)
+						{
+							OtherLinks.RemoveAt(i);
+							break;
+						}
 					}
 				}
 			}
-		}
 
-		for (auto&& OutputPin : SerializedNode.OutputPins)
-		{
-			for (auto&& LinkedRef : OutputPin.Value.LinkedTo)
+			for (auto&& OutputPin : SerializedNode.OutputPins)
 			{
-				FVoxelSerializedNode& LinkedNode = SerializedGraph->NodeNameToNode[LinkedRef.NodeName];
-				auto& OtherLinks = LinkedNode.InputPins[LinkedRef.PinName].LinkedTo;
-				for (int32 i = 0; i < OtherLinks.Num(); ++i)
+				for (auto&& LinkedRef : OutputPin.Value.LinkedTo)
 				{
-					if (OtherLinks[i].PinName == OutputPin.Key)
+					FVoxelSerializedNode& LinkedNode = SerializedGraph->NodeNameToNode[LinkedRef.NodeName];
+					auto& OtherLinks = LinkedNode.InputPins[LinkedRef.PinName].LinkedTo;
+					for (int32 i = 0; i < OtherLinks.Num(); ++i)
 					{
-						OtherLinks.RemoveAt(i);
-						break;
+						if (OtherLinks[i].PinName == OutputPin.Key)
+						{
+							OtherLinks.RemoveAt(i);
+							break;
+						}
 					}
 				}
 			}
-		}
 
-		SerializedGraph->NodeNameToNode.Remove(Node->ProxiedNodeRef.EdGraphNodeName);
-		Type |= EHVPEditType::SerializedGraph;
+			SerializedGraph->NodeNameToNode.Remove(Node->ProxiedNodeRef.EdGraphNodeName);
+			Type |= EHVPEditType::SerializedGraph;
+		}
 	}
 
 	// Sync the Compiled Graph
