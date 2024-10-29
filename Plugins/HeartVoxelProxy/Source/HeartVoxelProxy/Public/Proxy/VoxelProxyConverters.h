@@ -7,12 +7,22 @@
 #include "VoxelPinValue.h"
 #include "Model/HeartGraphPinDesc.h"
 
+namespace Heart::API
+{
+	class FNodeEdit;
+}
+
 struct FVoxelPinMetadata;
+struct FVoxelSerializedNode;
 struct FVoxelSerializedPin;
 class UVoxelProxyGraph;
 
 namespace Converters
 {
+	bool LIFTED_LoadSerializedNode(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedNode& SerializedNode);
+
+	void CreateVoxelProxyNode(Heart::API::FNodeEdit& Edit, UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedNode& Node);
+
 	UVoxelProxyGraph* CreateVoxelProxy(UObject* Outer, UVoxelGraph* GraphToProxy);
 
 	/* Convert a VoxelSerializedPin to a Heart Pin Desc. Uses the owning Proxy Graph to reuse Metadata to wrap the pin type. */

@@ -1,6 +1,7 @@
 ﻿// Copyright Guy (Drakynfly) Lundvall. All Rights Reserved.
 
 #include "Proxy/VoxelProxyConverters.h"
+#include "VoxelCompilationGraph.h"
 #include "Proxy/VoxelProxyDummy.h"
 #include "Proxy/VoxelProxyGraph.h"
 #include "Proxy/VoxelProxyNode.h"
@@ -21,6 +22,222 @@
 
 namespace Converters
 {
+	// Lifted from FVoxelGraphCompiler::LoadSerializedGraph
+	bool LIFTED_LoadSerializedNode(UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedNode& SerializedNode)
+	{
+		auto&& SerializedGraph = ProxyGraph->GetCompiledGraph();
+		if (!SerializedGraph) return false;
+
+		if (!SerializedNode.VoxelNode.IsValid())
+		{
+			for (const auto& It : SerializedNode.InputPins)
+			{
+				if (It.Value.LinkedTo.Num() > 0)
+				{
+					VOXEL_MESSAGE(Error, "Invalid struct on {0}", SerializedNode);
+					return false;
+				}
+			}
+			for (const auto& It : SerializedNode.OutputPins)
+			{
+				if (It.Value.LinkedTo.Num() > 0)
+				{
+					VOXEL_MESSAGE(Error, "Invalid struct on {0}", SerializedNode);
+					return false;
+				}
+			}
+
+			// This node isn't connected to anything, just skip it
+			VOXEL_MESSAGE(Warning, "Invalid struct on {0}", SerializedNode);
+			//SkippedNodes.Add(&SerializedNode);
+			//continue;
+			return false;
+		}
+
+		const FVoxelGraphNodeRef NodeRef
+		{
+			ProxyGraph->GetRef(),
+			SerializedNode.GetNodeId(),
+			SerializedNode.EdGraphNodeTitle,
+			SerializedNode.EdGraphNodeName
+		};
+
+		Voxel::Graph::FNode& Node = SerializedGraph->NewNode(NodeRef);
+		{
+			VOXEL_SCOPE_COUNTER_FORMAT("Copy node %s", *SerializedNode.VoxelNode->GetStruct()->GetName());
+			Node.SetVoxelNode(SerializedNode.VoxelNode->MakeSharedCopy());
+		}
+
+		for (const FString& Warning : SerializedNode.Warnings)
+		{
+			Node.AddError(Warning);
+		}
+		for (const FString& Error : SerializedNode.Errors)
+		{
+			Node.AddError(Error);
+		}
+
+		const FVoxelNode& VoxelNode = Node.GetVoxelNode();
+		for (const FVoxelPin& Pin : VoxelNode.GetPins())
+		{
+			if (!(Pin.bIsInput ? SerializedNode.InputPins : SerializedNode.OutputPins).Contains(Pin.Name))
+			{
+				VOXEL_MESSAGE(Error, "Outdated node {0}: missing pin {1}", SerializedNode, Pin.Name);
+				return false;
+			}
+		}
+		for (const auto& It : SerializedNode.InputPins)
+		{
+			const FVoxelSerializedPin& SerializedPin = It.Value;
+			if (!SerializedPin.ParentPinName.IsNone())
+			{
+				// Sub-pinS
+				continue;
+			}
+
+			const TSharedPtr<const FVoxelPin> Pin = VoxelNode.FindPin(SerializedPin.PinName);
+			if (!Pin ||
+				!Pin->bIsInput)
+			{
+				VOXEL_MESSAGE(Error, "Outdated node {0}: unknown pin {1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+
+			if (SerializedPin.Type != Pin->GetType())
+			{
+				VOXEL_MESSAGE(Error, "Outdated node {0}: type mismatch for pin {1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+		}
+		for (const auto& It : SerializedNode.OutputPins)
+		{
+			const FVoxelSerializedPin& SerializedPin = It.Value;
+			if (!SerializedPin.ParentPinName.IsNone())
+			{
+				// Sub-pinS
+				continue;
+			}
+
+			const TSharedPtr<const FVoxelPin> Pin = VoxelNode.FindPin(SerializedPin.PinName);
+			if (!Pin ||
+				Pin->bIsInput)
+			{
+				VOXEL_MESSAGE(Error, "Outdated node {0}: unknown pin {1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+
+			if (SerializedPin.Type != Pin->GetType())
+			{
+				VOXEL_MESSAGE(Error, "Outdated node {0}: type mismatch for pin {1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+		}
+
+		for (const auto& It : SerializedNode.InputPins)
+		{
+			const FVoxelSerializedPin& SerializedPin = It.Value;
+			if (!SerializedPin.Type.IsValid())
+			{
+				VOXEL_MESSAGE(Error, "Invalid pin {0}.{1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+
+			FVoxelPinValue DefaultValue;
+			if (SerializedPin.Type.HasPinDefaultValue())
+			{
+				DefaultValue = SerializedPin.DefaultValue;
+
+				if (!DefaultValue.IsValid() ||
+					!ensureVoxelSlow(DefaultValue.GetType().CanBeCastedTo(SerializedPin.Type.GetPinDefaultValueType())))
+				{
+					VOXEL_MESSAGE(Error, "{0}.{1}: Invalid default value", SerializedNode, SerializedPin.PinName);
+					return false;
+				}
+			}
+			else
+			{
+				ensureVoxelSlow(!SerializedPin.DefaultValue.IsValid());
+			}
+
+			Node.NewInputPin(SerializedPin.PinName, SerializedPin.Type, DefaultValue).SetParentName(SerializedPin.ParentPinName);
+		}
+
+		for (const auto& It : SerializedNode.OutputPins)
+		{
+			const FVoxelSerializedPin& SerializedPin = It.Value;
+			if (!SerializedPin.Type.IsValid())
+			{
+				VOXEL_MESSAGE(Error, "Invalid pin {0}.{1}", SerializedNode, SerializedPin.PinName);
+				return false;
+			}
+
+			Node.NewOutputPin(SerializedPin.PinName, SerializedPin.Type).SetParentName(SerializedPin.ParentPinName);
+		}
+
+		return true;
+	}
+
+	void CreateVoxelProxyNode(Heart::API::FNodeEdit& Edit, UVoxelProxyGraph* ProxyGraph, const FVoxelSerializedNode& Node)
+	{
+		Edit.Create_Reference(
+			UVoxelProxyNode::StaticClass(),
+			UVoxelProxyDummy::StaticClass(),
+			FVector2D::ZeroVector);
+				UVoxelProxyNode* NewProxy = Cast<UVoxelProxyNode>(Edit.Get());
+				check(NewProxy);
+
+		NewProxy->ProxiedNodeRef = FVoxelGraphNodeRef
+		{
+			ProxyGraph->GetRef(),
+			Node.GetNodeId(),
+			Node.EdGraphNodeTitle,
+			Node.EdGraphNodeName
+		};
+
+		for (auto&& InputPin : Node.InputPins)
+		{
+			TSharedPtr<const FVoxelPin> Pin = Node.VoxelNode->FindPin(InputPin.Key);
+			NewProxy->AddPin(VoxelPinToHeartPin(ProxyGraph,
+				InputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Input));
+		}
+
+		for (auto&& OutputPin : Node.OutputPins)
+		{
+			TSharedPtr<const FVoxelPin> Pin = Node.VoxelNode->FindPin(OutputPin.Key);
+			NewProxy->AddPin(VoxelPinToHeartPin(ProxyGraph,
+				OutputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Output));
+		}
+
+		NewProxy->CleanedName = FText::FromName(Node.EdGraphNodeTitle);
+
+		// Parse the NodeID for the node color.
+		const FString NodeIDStr = Node.GetNodeId().ToString();
+
+		// Voxel Nodes
+		if (NodeIDStr.StartsWith(TEXTVIEW("VoxelNode_")))
+		{
+			NewProxy->NodeColor = EVoxelProxyNodeColor::Blue;
+		}
+		// Voxel Template Nodes and Library functions
+		else if (NodeIDStr.StartsWith(TEXTVIEW("VoxelTemplateNode_")) ||
+				 NodeIDStr.Contains(TEXTVIEW("Library.")))
+		{
+			NewProxy->NodeColor = EVoxelProxyNodeColor::Green;
+		}
+		// Voxel Exec Nodes
+		else if (NodeIDStr.StartsWith(TEXTVIEW("VoxelExecNode_")))
+		{
+			if (NodeIDStr.Contains(TEXTVIEW("CallGraph")))
+			{
+				NewProxy->NodeColor = EVoxelProxyNodeColor::Orange;
+			}
+			else
+			{
+				NewProxy->NodeColor = EVoxelProxyNodeColor::Red;
+			}
+		}
+	}
+
 	UVoxelProxyGraph* CreateVoxelProxy(UObject* Outer, UVoxelGraph* GraphToProxy)
 	{
 		UVoxelProxyGraph* ProxyGraph = NewObject<UVoxelProxyGraph>(Outer);
@@ -38,67 +255,9 @@ namespace Converters
 
 			for (auto&& NameAndSerializedNode : SerializedGraph.NodeNameToNode)
 			{
-				const FVoxelSerializedNode& SerializedNode = NameAndSerializedNode.Value;
+				CreateVoxelProxyNode(NodeEdit, ProxyGraph, NameAndSerializedNode.Value);
 
-				NodeEdit.Create_Reference(
-					UVoxelProxyNode::StaticClass(),
-					UVoxelProxyDummy::StaticClass(),
-					FVector2D::ZeroVector);
-				UVoxelProxyNode* NewProxy = Cast<UVoxelProxyNode>(NodeEdit.Get());
-				check(NewProxy);
-
-				VoxelIDToHeartNodes.Add(NameAndSerializedNode.Key, NewProxy->GetGuid());
-
-				NewProxy->ProxiedNodeRef = FVoxelGraphNodeRef
-				{
-					TerminalGraphRef,
-					SerializedNode.GetNodeId(),
-					SerializedNode.EdGraphNodeTitle,
-					SerializedNode.EdGraphNodeName
-				};
-
-				for (auto&& InputPin : SerializedNode.InputPins)
-				{
-					TSharedPtr<const FVoxelPin> Pin = SerializedNode.VoxelNode->FindPin(InputPin.Key);
-					NewProxy->AddPin(VoxelPinToHeartPin(ProxyGraph,
-						InputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Input));
-				}
-
-				for (auto&& OutputPin : SerializedNode.OutputPins)
-				{
-					TSharedPtr<const FVoxelPin> Pin = SerializedNode.VoxelNode->FindPin(OutputPin.Key);
-					NewProxy->AddPin(VoxelPinToHeartPin(ProxyGraph,
-						OutputPin.Value, Pin ? Pin->Metadata : FVoxelPinMetadata(), EHeartPinDirection::Output));
-				}
-
-				NewProxy->CleanedName = FText::FromName(SerializedNode.EdGraphNodeTitle);
-
-				// Parse the NodeID for the node color.
-				const FString NodeIDStr = SerializedNode.GetNodeId().ToString();
-
-				// Voxel Nodes
-				if (NodeIDStr.StartsWith(TEXTVIEW("VoxelNode_")))
-				{
-					NewProxy->NodeColor = EVoxelProxyNodeColor::Blue;
-				}
-				// Voxel Template Nodes and Library functions
-				else if (NodeIDStr.StartsWith(TEXTVIEW("VoxelTemplateNode_")) ||
-						 NodeIDStr.Contains(TEXTVIEW("Library.")))
-				{
-					NewProxy->NodeColor = EVoxelProxyNodeColor::Green;
-				}
-				// Voxel Exec Nodes
-				else if (NodeIDStr.StartsWith(TEXTVIEW("VoxelExecNode_")))
-				{
-					if (NodeIDStr.Contains(TEXTVIEW("CallGraph")))
-					{
-						NewProxy->NodeColor = EVoxelProxyNodeColor::Orange;
-					}
-					else
-					{
-						NewProxy->NodeColor = EVoxelProxyNodeColor::Red;
-					}
-				}
+				VoxelIDToHeartNodes.Add(NameAndSerializedNode.Key, NodeEdit.Get()->GetGuid());
 			}
 		}
 

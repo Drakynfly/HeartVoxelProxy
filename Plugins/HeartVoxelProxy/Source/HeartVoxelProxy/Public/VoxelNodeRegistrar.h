@@ -15,4 +15,13 @@ class HEARTVOXELPROXY_API UVoxelNodeRegistrar : public UGraphNodeRegistrar
 
 public:
 	UVoxelNodeRegistrar();
+
+	virtual bool ShouldRegister() const override;
+
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(EditAnywhere, Category = "Reset")
+	bool RegenerateOnSave = false;
+#endif
 };

@@ -49,14 +49,6 @@ protected:
 
 	virtual void HandleGraphConnectionEvent(const FHeartGraphConnectionEvent& Event) override;
 
-	const FVoxelSerializedGraph* GetSerializedGraph() const;
-	FVoxelSerializedGraph* GetSerializedGraph();
-
-	const Voxel::Graph::FGraph* GetCompiledGraph() const;
-	Voxel::Graph::FGraph* GetCompiledGraph();
-
-	Voxel::Graph::FNode* GetCompiledGraphNode(FName NodeID);
-
 	void SyncNodeRemoval(const UVoxelProxyNode* Node);
 
 	/* Push Heart Pin connections to Voxel Graph */
@@ -65,6 +57,16 @@ protected:
 	void NotifyVoxelGraphEdited(EHVPEditType Type);
 
 public:
+	const FVoxelSerializedGraph* GetSerializedGraph() const;
+	FVoxelSerializedGraph* GetSerializedGraph();
+
+	const Voxel::Graph::FGraph* GetCompiledGraph() const;
+	Voxel::Graph::FGraph* GetCompiledGraph();
+
+	Voxel::Graph::FNode* GetCompiledGraphNode(FName NodeID);
+
+	FVoxelTerminalGraphRef GetRef() const { return TerminalGraphRef; }
+
 	void SetInitialized(const FVoxelTerminalGraphRef& GraphRef);
 
 	FHVPEvent::RegistrationType& GetOnVoxelSerializedGraphEdited() { return OnVoxelSerializedGraphEdited; }
@@ -84,6 +86,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
 	void SetParameterValue(FName Name, const FBloodValue& Value);
 
+	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
+	FHeartNodeGuid AddNodeToGraph(UObject* VoxelNodeSource);
+
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxy|PinValue")
 	FBloodValue GetPinDefaultValue(FHeartNodeGuid NodeGuid, FName Pin) const;
 
@@ -95,6 +100,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "VoxelProxyGraph")
 	UHeartObjectTree* GetClassPicker() const { return { ClassPickerOptions }; }
+
 
 protected:
 	FHVPEvent OnVoxelSerializedGraphEdited;

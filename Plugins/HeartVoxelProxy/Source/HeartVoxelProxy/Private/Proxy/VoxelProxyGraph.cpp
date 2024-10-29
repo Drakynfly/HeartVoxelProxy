@@ -16,10 +16,15 @@
 #include "General/ObjectTree.h"
 
 #include "access/access.h"
+#include "Model/HeartNodeEdit.h"
+#include "Nodes/VoxelNode_UFunction.h"
 
 using FCachedCompiledGraphType = TOptional<TSharedPtr<const Voxel::Graph::FGraph>>;
 
 ACCESS_CREATE_TAG(FCachedCompiledGraph, UVoxelTerminalGraphRuntime, CachedCompiledGraph);
+
+ACCESS_CREATE_TAG(FFixupPins, FVoxelNode_UFunction, FixupPins);
+ACCESS_CREATE_TAG(FFunction, FVoxelNode_UFunction, Function);
 
 namespace Voxel::Graph
 {
@@ -67,57 +72,6 @@ void UVoxelProxyGraph::HandleGraphConnectionEvent(const FHeartGraphConnectionEve
 			}
 		}
 	}
-}
-
-const FVoxelSerializedGraph* UVoxelProxyGraph::GetSerializedGraph() const
-{
-	if (!TerminalGraphRef.Graph.IsValid()) return nullptr;
-	return &TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime().GetSerializedGraph();
-}
-
-FVoxelSerializedGraph* UVoxelProxyGraph::GetSerializedGraph()
-{
-	if (!TerminalGraphRef.Graph.IsValid()) return nullptr;
-	return &ConstCast(TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime().GetSerializedGraph());
-}
-
-const Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph() const
-{
-	// Sync the Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
-		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
-	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
-	{
-		return CompiledGraph.GetValue().Get();
-	}
-	return nullptr;
-}
-
-Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph()
-{
-	// Sync the Compiled Graph
-	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
-		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
-	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
-	{
-		return ConstCast(CompiledGraph.GetValue().Get());
-	}
-	return nullptr;
-}
-
-Voxel::Graph::FNode* UVoxelProxyGraph::GetCompiledGraphNode(const FName NodeID)
-{
-	if (auto&& CompiledGraph = GetCompiledGraph())
-	{
-		for (Voxel::Graph::FNode* NodePtr : CompiledGraph->GetNodesArray())
-		{
-			if (NodePtr->NodeRef.NodeId == NodeID)
-			{
-				return NodePtr;
-			}
-		}
-	}
-	return nullptr;
 }
 
 void UVoxelProxyGraph::SyncNodeRemoval(const UVoxelProxyNode* Node)
@@ -207,8 +161,23 @@ void SetDisconnectedPinDefaultValue(Voxel::Graph::FPin& Pin)
 	}
 
 	// @todo can we get the default value from the SerializedGraph instead?
-	const FVoxelPinValue DefaultValue = FVoxelPinValue(Pin.Type);
+	const FVoxelPinValue DefaultValue = FVoxelPinValue(Pin.Type.GetPinDefaultValueType());
 	Pin.SetDefaultValue(DefaultValue);
+}
+
+void SetDisconnectedPinDefaultValue(FVoxelSerializedPin& Pin)
+{
+	if (!Pin.Type.HasPinDefaultValue()) return;
+
+	const FVoxelPinType DefaultPinType = Pin.Type.GetPinDefaultValueType();
+
+	if (DefaultPinType.IsBuffer() ||
+		DefaultPinType.IsBufferArray())
+	{
+		return;
+	}
+
+	Pin.DefaultValue = FVoxelPinValue(DefaultPinType);
 }
 
 void UVoxelProxyGraph::SyncPinConnections(const UVoxelProxyNode* Node, const FHeartPinGuid& Pin)
@@ -356,6 +325,57 @@ void UVoxelProxyGraph::NotifyVoxelGraphEdited(const EHVPEditType Type)
 	}
 }
 
+const FVoxelSerializedGraph* UVoxelProxyGraph::GetSerializedGraph() const
+{
+	if (!TerminalGraphRef.Graph.IsValid()) return nullptr;
+	return &TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime().GetSerializedGraph();
+}
+
+FVoxelSerializedGraph* UVoxelProxyGraph::GetSerializedGraph()
+{
+	if (!TerminalGraphRef.Graph.IsValid()) return nullptr;
+	return &ConstCast(TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime().GetSerializedGraph());
+}
+
+const Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph() const
+{
+	// Sync the Compiled Graph
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
+		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
+	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
+	{
+		return CompiledGraph.GetValue().Get();
+	}
+	return nullptr;
+}
+
+Voxel::Graph::FGraph* UVoxelProxyGraph::GetCompiledGraph()
+{
+	// Sync the Compiled Graph
+	FCachedCompiledGraphType CompiledGraph = access::get<FCachedCompiledGraph>(
+		TerminalGraphRef.Graph->GetMainTerminalGraph().GetRuntime());
+	if (CompiledGraph.IsSet() && CompiledGraph.GetValue().IsValid())
+	{
+		return ConstCast(CompiledGraph.GetValue().Get());
+	}
+	return nullptr;
+}
+
+Voxel::Graph::FNode* UVoxelProxyGraph::GetCompiledGraphNode(const FName NodeID)
+{
+	if (auto&& CompiledGraph = GetCompiledGraph())
+	{
+		for (Voxel::Graph::FNode* NodePtr : CompiledGraph->GetNodesArray())
+		{
+			if (NodePtr->NodeRef.NodeId == NodeID)
+			{
+				return NodePtr;
+			}
+		}
+	}
+	return nullptr;
+}
+
 void UVoxelProxyGraph::SetInitialized(const FVoxelTerminalGraphRef& GraphRef)
 {
 	check(!Initialized);
@@ -437,6 +457,68 @@ void UVoxelProxyGraph::SetParameterValue(const FName Name, const FBloodValue& Va
 		return;
 	}
 	Graph->SetParameter(Name, Converters::BloodToVoxelPin(Value, PinTypeWrapper->PinType));
+}
+
+FHeartNodeGuid UVoxelProxyGraph::AddNodeToGraph(UObject* VoxelNodeSource)
+{
+	if (!IsValid(VoxelNodeSource)) return FHeartNodeGuid();
+
+	FVoxelSerializedNode SerializedNode;
+
+	if (auto&& AsScriptStruct = Cast<UScriptStruct>(VoxelNodeSource))
+	{
+		SerializedNode.VoxelNode = MakeSharedStruct<FVoxelNode>(AsScriptStruct);
+	}
+	else if (auto&& AsFunction = Cast<UFunction>(VoxelNodeSource))
+	{
+		const TSharedRef<FVoxelNode_UFunction> Node = MakeVoxelShared<FVoxelNode_UFunction>();
+		access::get<FFunction>(Node.Get()) = AsFunction;
+		access::call<FFixupPins>(Node.Get());
+		SerializedNode.VoxelNode = Node;
+	}
+	else
+	{
+		unimplemented();
+	}
+
+	if (SerializedNode.VoxelNode)
+	{
+		SerializedNode.StructName = SerializedNode.VoxelNode.GetScriptStruct()->GetFName();
+
+		for (auto&& Pin : SerializedNode.VoxelNode->GetPins())
+		{
+			FVoxelSerializedPin SerializedPin;
+			SerializedPin.PinName =	Pin.Name;
+			SerializedPin.Type = Pin.GetType();
+			//SerializedPin.ParentPinName = // Todo..
+
+			if (Pin.bIsInput)
+			{
+				SetDisconnectedPinDefaultValue(SerializedPin);
+				SerializedNode.InputPins.Add(Pin.Name, SerializedPin);
+			}
+			else
+			{
+				SerializedNode.OutputPins.Add(Pin.Name, SerializedPin);
+			}
+		}
+	}
+
+	// @todo temp
+	SerializedNode.EdGraphNodeName = MakeUniqueObjectName(this, UVoxelProxyNode::StaticClass(), SerializedNode.StructName);
+	SerializedNode.EdGraphNodeTitle = SerializedNode.EdGraphNodeName;
+
+	GetSerializedGraph()->NodeNameToNode.Add(SerializedNode.EdGraphNodeName, SerializedNode);
+
+	Converters::LIFTED_LoadSerializedNode(this, SerializedNode);
+
+	FHeartNodeGuid Out;
+	{
+		Heart::API::FNodeEdit NodeEdit(this);
+		Converters::CreateVoxelProxyNode(NodeEdit, this, SerializedNode);
+		Out = NodeEdit.Get()->GetGuid();
+	}
+	return Out;
 }
 
 FBloodValue UVoxelProxyGraph::GetPinDefaultValue(const FHeartNodeGuid NodeGuid, const FName Pin) const
